@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ChevronRight, 
@@ -18,13 +18,20 @@ import {
   BadgePercent,
   Clock,
   Briefcase,
-  Crown
+  Crown,
+  MapPin,
+  Star,
+  BarChart2
 } from 'lucide-react';
 import { EQUIPMENT_DATA } from './data/equipment';
 import { OBJECTIONS } from './data/objections';
-import { generateContractText } from './data/contract';
-import { formatCurrency, calculateMonthlyInstallment } from './lib/utils';
+import { PITCHES_POR_MARCA } from './data/pitches';
+import { ContractText } from './data/contract';
+import { formatCurrency, calculateMonthlyInstallment, downloadTxt, trackMetric } from './lib/utils';
 import { Equipment, PoliedroData } from './types';
+import ModoLlamada from './ModoLlamada';
+import MetricsPanel from './MetricsPanel';
+import { PhoneCall } from 'lucide-react';
 
 const STEPS = [
   { id: 1, title: 'Bienvenida', icon: User },
@@ -33,14 +40,25 @@ const STEPS = [
   { id: 4, title: 'Catálogo', icon: Smartphone },
   { id: 5, title: 'Calculadora', icon: Calculator },
   { id: 6, title: 'Objeciones', icon: HelpCircle },
-  { id: 7, title: 'Habeas Data', icon: ShieldCheck },
-  { id: 8, title: 'Poliedro', icon: ShieldCheck },
-  { id: 9, title: 'Contrato', icon: FileText },
-  { id: 10, title: 'Resumen', icon: CheckCircle2 },
+  { id: 7, title: 'Claro UP', icon: ShieldCheck },
+  { id: 8, title: 'Habeas Data', icon: ShieldCheck },
+  { id: 9, title: 'Poliedro', icon: ShieldCheck },
+  { id: 10, title: 'Dirección', icon: MapPin },
+  { id: 11, title: 'Resumen Verbal', icon: MessageSquare },
+  { id: 12, title: 'Contrato', icon: FileText },
+  { id: 13, title: 'Resumen', icon: CheckCircle2 },
 ];
 
 export default function App() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isModoLlamada, setIsModoLlamada] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{msg: string, type: 'error' | 'success'} | null>(null);
+
+  const showToast = (msg: string, type: 'error' | 'success' = 'error') => {
+    setToastMessage({ msg, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
   const [clientInfo, setClientInfo] = useState({
     nombre: '',
     cc: '',
@@ -48,9 +66,14 @@ export default function App() {
     email: '',
     ocupacion: '',
     marcaPreferida: '',
-    prioridades: [] as string[],
+    prioridades: [],
+    direccion: '',
     usos: [] as string[],
+    presupuestoMensual: 45000,
+    paraQuien: 'Para mí',
+    equipoActual: ''
   });
+  const [claroUpOfrecido, setClaroUpOfrecido] = useState<boolean | null>(null);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [term, setTerm] = useState(24);
   const [poliedroRaw, setPoliedroRaw] = useState('');
@@ -68,34 +91,72 @@ export default function App() {
 
   const goToStep = (stepId: number) => {
     if (stepId > 1 && !clientInfo.nombre) {
-      alert("Por favor complete el nombre en Bienvenida.");
+      showToast("Por favor complete el nombre en Bienvenida.", 'error');
       setCurrentStep(1);
       return;
     }
     if (stepId > 4 && !selectedEquipment) {
-      alert("Por favor seleccione un equipo en el Catálogo.");
+      showToast("Por favor seleccione un equipo en el Catálogo.", 'error');
       setCurrentStep(4);
       return;
     }
-    if (stepId >= 8 && !habeasDataRead) {
-      alert("Debe realizar la lectura completa del guion de Habeas Data.");
+    if (stepId > 7 && claroUpOfrecido === null) {
+      showToast("Debe confirmar si ofreció Claro UP para continuar.", 'error');
+      setCurrentStep(7);
       return;
     }
-    if (stepId >= 9 && !poliedroData) {
-      alert("Debe extraer los datos de Poliedro para continuar.");
+    if (stepId >= 9 && !habeasDataRead) {
+      showToast("Debe realizar la lectura completa del guion de Habeas Data.", 'error');
+      setCurrentStep(8);
       return;
     }
-    if (stepId === 10 && (!contractAccepted || !habeasDataAccepted)) {
-      alert("Debe aceptar el contrato y el tratamiento de datos.");
+    if (stepId >= 10 && !poliedroData) {
+      showToast("Debe extraer los datos de Poliedro para continuar.", 'error');
+      setCurrentStep(9);
+      return;
+    }
+    if (stepId >= 11 && !clientInfo.direccion) {
+      showToast("Debe ingresar la dirección de entrega.", 'error');
+      setCurrentStep(10);
+      return;
+    }
+    if (stepId === 13 && (!contractAccepted || !habeasDataAccepted)) {
+      showToast("Debe aceptar el contrato y el tratamiento de datos.", 'error');
+      setCurrentStep(12);
       return;
     }
     setCurrentStep(stepId);
+    trackMetric('avgMaxStep', Math.max(stepId, Number(localStorage.getItem('tyt_max_step') || 0)));
+    localStorage.setItem('tyt_max_step', stepId.toString());
     window.scrollTo(0, 0);
   };
 
   const nextStep = () => goToStep(currentStep + 1);
 
   const prevStep = () => goToStep(currentStep - 1);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
+
+      if (e.key === 'ArrowRight') {
+        nextStep();
+      } else if (e.key === 'ArrowLeft') {
+        prevStep();
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setIsModoLlamada(p => !p);
+      } else if (e.key === 'Escape') {
+        setIsModoLlamada(false);
+      } else if (e.altKey && !isNaN(Number(e.key))) {
+        const num = Number(e.key);
+        if (num >= 1 && num <= 9) goToStep(num);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentStep, clientInfo, selectedEquipment, claroUpOfrecido, habeasDataRead, poliedroData, contractAccepted, habeasDataAccepted]);
 
   const handlePoliedroExtraction = () => {
     const text = poliedroRaw;
@@ -139,6 +200,9 @@ export default function App() {
       saldoADiferir: parts.length > 6 ? parts[6] : extract(/Saldo a Diferir\s+([^\n\t]+)/i),
       plazoSimulado: parts.length > 7 ? parts[7].replace(/[^\d]/g, '') : extract(/Cantidad de Cuotas\s+([^\n\t]+)/i),
       cuotaSimulada: parts.length > 8 ? parts[8] : extract(/Valor Cuota equipo mensual\s+([^\n\t]+)/i),
+      valorTotal: parts.length > 6 ? parts[6] : extract(/Saldo a Diferir\s+([^\n\t]+)/i),
+      valorIVA: parts.length > 2 ? parts[2] : extract(/Valor IVA\s+([^\n\t]+)/i),
+      pagoInicial: parts.length > 5 ? parts[5] : extract(/Pago Inicial IVA incluido\s+([^\n\t]+)/i) || '$0',
     };
 
     // Clean up if it caught multiple numbers in plazo
@@ -181,6 +245,7 @@ export default function App() {
   }, [realPrice, term]);
 
   const handleExportTxt = () => {
+    trackMetric('sales', 1);
     const code = `TYT-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     const text = `
 =========================================
@@ -211,8 +276,9 @@ PLAZO: ${term} MESES
 CUOTA MENSUAL: ${formatCurrency(monthlyQuota)}
 TASA MV: 2.09% (Fija)
 
-AUTORIZACIONES:
+AUTORIZACIONES Y SEGUROS:
 -----------------------------------------
+SEGURO CLARO UP OFRECIDO: ${claroUpOfrecido ? 'SI' : 'NO'}
 CONTRATO ACEPTADO: SI
 HABEAS DATA LEY 1581: SI
 LECTURA DE GUION: SI
@@ -222,9 +288,7 @@ VENTAS TECH TYT © 2026
 =========================================
     `;
     
-    import('./lib/utils').then(utils => {
-      utils.downloadTxt(`Venta_${clientInfo.cc}_${code}.txt`, text.trim());
-    });
+    downloadTxt(`Venta_${clientInfo.cc}_${code}.txt`, text.trim());
   };
 
   const resetAll = () => {
@@ -237,8 +301,13 @@ VENTAS TECH TYT © 2026
       ocupacion: '',
       marcaPreferida: '',
       prioridades: [],
+      direccion: '',
       usos: [],
+      presupuestoMensual: 45000,
+      paraQuien: 'Para mí',
+      equipoActual: ''
     });
+    setClaroUpOfrecido(null);
     setSelectedEquipment(null);
     setTerm(24);
     setPoliedroRaw('');
@@ -298,6 +367,52 @@ VENTAS TECH TYT © 2026
     return ['TODOS', ...Array.from(names).sort()];
   }, [selectedBrand, selectedCategory]);
 
+  const recommendedEquipments = useMemo(() => {
+    return EQUIPMENT_DATA.map(eq => {
+      let score = 0;
+      let reason = '';
+      
+      const isTV = eq.categoria === 'TECNOLOGIA' && eq.nombre.toLowerCase().includes('tv');
+      const budgetLimit = clientInfo.presupuestoMensual || 45000;
+      const cuotaAprox = eq.precio * 0.06;
+      
+      if (clientInfo.marcaPreferida && eq.marca === clientInfo.marcaPreferida) score += 30;
+      
+      if (cuotaAprox <= budgetLimit) {
+        score += 25;
+        if (eq.precio >= 1300000) score += 30;
+        else if (eq.precio >= 800000) score += 15;
+      } else {
+        score -= 50;
+      }
+
+      if (clientInfo.prioridades.includes('Cámara') && eq.precio >= 1000000) score += 20;
+      if (clientInfo.prioridades.includes('Precio') && eq.precio < 800000) score += 25;
+      if (clientInfo.prioridades.includes('Batería') && (eq.marca === 'MOTOROLA' || eq.marca === 'XIAOMI')) score += 15;
+      if (clientInfo.prioridades.includes('Velocidad') && eq.precio >= 1300000) score += 20;
+
+      if (isTV) score += 20;
+
+      if (isTV) {
+        reason = "📺 Opción Estratégica: Combínalo o gánchatelo por el Día de las Madres / Deportes. Excelente ROI.";
+      } else if (cuotaAprox > budgetLimit) {
+         reason = "⚠️ Cuota excede el presupuesto actual acordado. Riesgo de objeción.";
+      } else if (eq.precio >= 1300000 && clientInfo.prioridades.includes('Cámara')) {
+        reason = `📸 Perfecto para ${clientInfo.paraQuien === 'Mi hijo(a)' ? 'su hijo' : 'alguien'} que valora la Cámara y busca estatus Premium.`;
+      } else if (clientInfo.prioridades.includes('Precio')) {
+        reason = `💸 Best-seller de costo/beneficio. Cuota estimada muy cómoda (~${formatCurrency(cuotaAprox)}/mes).`;
+      } else if (clientInfo.marcaPreferida && eq.marca === clientInfo.marcaPreferida) {
+        reason = `🎯 Fiel a su marca. Transición indolora desde su actual ${clientInfo.equipoActual || 'equipo'}.`;
+      } else if (eq.precio >= 1300000) {
+        reason = `🚀 Equipo de alto rendimiento ideal para un(a) ${clientInfo.ocupacion || 'profesional'} exigente.`;
+      } else {
+        reason = `✅ Estabilidad y garantía comprobada. Un equipo de batalla.`;
+      }
+
+      return { ...eq, score, reason, cuotaAprox };
+    }).sort((a, b) => b.score - a.score).slice(0, 7);
+  }, [clientInfo.presupuestoMensual, clientInfo.marcaPreferida, clientInfo.prioridades, clientInfo.paraQuien, clientInfo.equipoActual, clientInfo.ocupacion]);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#1E293B] font-sans pb-20">
       {/* Header */}
@@ -308,19 +423,34 @@ VENTAS TECH TYT © 2026
               <div className="w-5 h-5 brand-gradient rounded-sm"></div>
             </div>
             <h1 className="text-xl font-extrabold tracking-tighter italic uppercase">
-              Asistente de Ventas TyT <span className="font-light opacity-80 uppercase text-[10px] tracking-widest ml-2">V.Mayo.2026</span>
+              Asistente de Ventas TyT <span className="font-light opacity-80 uppercase text-[10px] tracking-widest ml-2 hidden sm:inline">V.Mayo.2026</span>
             </h1>
           </div>
-          <div className="hidden md:flex gap-4 text-[10px] font-bold uppercase tracking-wider">
-            <span className="bg-white/20 px-3 py-1 rounded-full border border-white/10 backdrop-blur-sm">Tasa EA: 28.17%</span>
-            <span className="bg-white/20 px-3 py-1 rounded-full border border-white/10 backdrop-blur-sm">664 Equipos Activos</span>
+          <div className="flex gap-4 items-center">
+            <button onClick={() => setShowMetrics(true)} className="p-2 border border-white/20 rounded-full hover:bg-white/10 transition-all">
+              <BarChart2 size={16} />
+            </button>
+            <div className="hidden md:flex gap-4 text-[10px] font-bold uppercase tracking-wider">
+              <span className="bg-white/20 px-3 py-1 rounded-full border border-white/10 backdrop-blur-sm">Tasa EA: 28.17%</span>
+              <span className="bg-white/20 px-3 py-1 rounded-full border border-white/10 backdrop-blur-sm">664 Equipos Activos</span>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 mt-8 print:px-0">
-        {/* Step Indicator */}
-        <div className="mb-12 flex justify-between items-center print:hidden overflow-x-auto py-2">
+        {/* Step Indicator Mobile */}
+        <div className="md:hidden flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border border-slate-200 print:hidden">
+          <button onClick={prevStep} disabled={currentStep === 1} className="p-2 text-slate-400 disabled:opacity-30"><ChevronLeft size={24}/></button>
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] font-bold text-brand-magenta uppercase tracking-widest">Paso {currentStep} de {STEPS.length}</span>
+            <span className="text-sm font-black text-slate-800">{STEPS.find(s => s.id === currentStep)?.title}</span>
+          </div>
+          <button onClick={nextStep} disabled={currentStep === STEPS.length} className="p-2 text-brand-blue disabled:opacity-30"><ChevronRight size={24}/></button>
+        </div>
+
+        {/* Step Indicator Desktop */}
+        <div className="mb-12 hidden md:flex justify-between items-center print:hidden overflow-x-auto py-2">
           {STEPS.map((step) => {
             const Icon = step.icon;
             const isActive = currentStep === step.id;
@@ -360,23 +490,29 @@ VENTAS TECH TYT © 2026
             {/* STEP 1: WELCOME */}
             {currentStep === 1 && (
               <div className="space-y-8" id="step1">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="hormozi-box p-6 rounded-r-xl shadow-sm bg-white border border-slate-100">
-                    <h2 className="text-brand-magenta font-extrabold text-xs mb-3 uppercase tracking-widest flex items-center gap-2">
-                       <Crown size={14} /> Guión Gold (Apertura)
-                    </h2>
-                    <p className="text-xs leading-relaxed italic text-slate-700 font-medium font-serif">
-                      "Hola, mi nombre es {asesor}. Me comunico con el titular de la línea porque usted ha sido seleccionado por su excelente comportamiento de pago para recibir un beneficio tecnológico exclusivo. ¿Tengo el gusto de hablar con...?"
-                    </p>
-                  </div>
-
-                  <div className="hormozi-box p-6 rounded-r-xl shadow-sm bg-white border border-slate-100 border-l-brand-blue">
-                    <h2 className="text-brand-blue font-extrabold text-xs mb-3 uppercase tracking-widest flex items-center gap-2">
-                       <BadgePercent size={14} /> Guión de Impacto
-                    </h2>
-                    <p className="text-xs leading-relaxed italic text-slate-700 font-medium font-serif">
-                      "¡Felicidades! Usted hace parte del grupo selecto que hoy tiene un cupo preaprobado para renovar su tecnología. Mi misión hoy es que estrene equipo sin trámites complicados. ¿Me confirma su nombre para iniciar?"
-                    </p>
+                <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-lg ring-1 ring-brand-blue/5">
+                  <h2 className="text-slate-800 font-extrabold text-sm mb-4 uppercase tracking-widest flex items-center gap-2 border-b pb-3">
+                     <Crown size={16} className="text-brand-magenta" /> Elevator Pitches de Impacto (Apertura)
+                  </h2>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-slate-50 border-l-4 border-brand-blue rounded-r-lg hover:bg-blue-50 transition-colors">
+                      <h3 className="text-[10px] uppercase font-bold text-brand-blue mb-2 tracking-wider">FOMO (Sentido de Urgencia)</h3>
+                      <p className="text-xs leading-relaxed italic text-slate-700 font-medium">
+                        "¡Hola {asesor ? 'le habla ' + asesor : ''}! Le escribo porque el sistema me acaba de arrojar una alerta con su número. Su línea fue seleccionada para una liberación de inventario a precio de bodega y sin cuota inicial. Este beneficio se cierra hoy mismo. ¿Qué marca de celular es su favorita para validarle opciones?"
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-50 border-l-4 border-brand-magenta rounded-r-lg hover:bg-magenta-50 transition-colors">
+                      <h3 className="text-[10px] uppercase font-bold text-brand-magenta mb-2 tracking-wider">Fidelización y Beneficio</h3>
+                      <p className="text-xs leading-relaxed italic text-slate-700 font-medium">
+                        "¡Qué tal, buenas! {asesor ? 'Mi nombre es ' + asesor : ''}. Llamo a darle buenas noticias. Usted lleva un historial excelente y por eso hoy le damos luz verde para llevarse un equipo potente pagando lo de un equipo básico en su factura, 100% financiado. ¿Para quién sería el equipo, para usted o para alguien más en casa?"
+                      </p>
+                    </div>
+                    <div className="p-4 bg-slate-50 border-l-4 border-brand-cyan rounded-r-lg hover:bg-cyan-50 transition-colors">
+                      <h3 className="text-[10px] uppercase font-bold text-brand-cyan mb-2 tracking-wider">Dolor y Solución Directa</h3>
+                      <p className="text-xs leading-relaxed italic text-slate-700 font-medium">
+                        "¡Hola! {asesor ? 'Soy ' + asesor : ''}. Notamos que su línea ya tiene la antigüedad suficiente para el programa VIP. A veces uno se aguanta el celular lento o sin memoria, pero usted ya tiene listo el cupo para estrenar hoy mismo de tajada y sin papeles. ¿Cómo le está funcionando el celular que tiene actualmente?"
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -506,29 +642,88 @@ VENTAS TECH TYT © 2026
                   </div>
                 </div>
 
-                <div className="space-y-6 glass-card p-8">
-                  <h3 className="input-label">Valores Prioritarios</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {['Cámara', 'Batería', 'Velocidad', 'Diseño', 'Precio', 'Memoria'].map(p => (
-                      <button
-                        key={p}
-                        onClick={() => {
-                          const exists = clientInfo.prioridades.includes(p);
-                          if (!exists && clientInfo.prioridades.length >= 3) return;
-                          setClientInfo({
-                            ...clientInfo,
-                            prioridades: exists ? clientInfo.prioridades.filter(x => x !== p) : [...clientInfo.prioridades, p]
-                          });
-                        }}
-                        className={`px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest transition-all border ${
-                          clientInfo.prioridades.includes(p) 
-                          ? 'bg-brand-blue text-white border-brand-blue shadow-md' 
-                          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
+                <div className="space-y-6 glass-card p-8 bg-white/90">
+                  <h3 className="text-sm font-black mb-6 text-slate-800 flex items-center gap-2 uppercase tracking-widest pb-4 border-b">
+                     2. Factor de Decisión
+                  </h3>
+
+                  <div className="space-y-4 mb-6">
+                    <label className="input-label">¿Qué es lo que MÁS valora el cliente hoy? (Seleccione varias)</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {['Cámara', 'Batería', 'Velocidad', 'Precio', 'Productividad/IA', 'Diseño', 'Memoria'].map(p => (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            const exists = clientInfo.prioridades.includes(p);
+                            setClientInfo({
+                              ...clientInfo, 
+                              prioridades: exists 
+                                ? clientInfo.prioridades.filter(x => x !== p) 
+                                : [...clientInfo.prioridades, p]
+                            });
+                          }}
+                          className={`p-3 rounded-lg font-bold text-xs uppercase tracking-widest transition-all border text-center ${
+                            clientInfo.prioridades.includes(p) 
+                            ? 'bg-brand-blue text-white border-brand-blue shadow-md' 
+                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-6 pt-4 border-t border-slate-100">
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <label className="input-label block">¿Para quién es el equipo?</label>
+                        <select 
+                          className="w-full form-input"
+                          value={clientInfo.paraQuien}
+                          onChange={(e) => setClientInfo({...clientInfo, paraQuien: e.target.value})}
+                        >
+                          <option value="Para mí">Para mí</option>
+                          <option value="Mi hijo(a)">Para mi hijo(a)</option>
+                          <option value="Mi pareja">Para mi pareja</option>
+                          <option value="Familiar cercano">Familiar cercano</option>
+                          <option value="Es un regalo">Es un regalo</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="input-label block">¿Qué celular tiene actualmente?</label>
+                        <input 
+                          type="text"
+                          className="w-full form-input bg-white"
+                          placeholder="Ej: Samsung A12, iPhone 11..."
+                          value={clientInfo.equipoActual}
+                          onChange={(e) => setClientInfo({...clientInfo, equipoActual: e.target.value})}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <div className="flex justify-between items-end mb-2">
+                        <label className="input-label mb-0">Presupuesto Mensual Acordado</label>
+                        <span className="text-brand-magenta font-black text-lg bg-brand-magenta/10 px-3 py-1 rounded">
+                          {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(clientInfo.presupuestoMensual!)} / mes
+                        </span>
+                      </div>
+                      <input 
+                        type="range"
+                        min="15000"
+                        max="150000"
+                        step="5000"
+                        className="w-full h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-brand-magenta"
+                        value={clientInfo.presupuestoMensual}
+                        onChange={(e) => setClientInfo({...clientInfo, presupuestoMensual: Number(e.target.value)})}
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1">
+                        <span>$15.000</span>
+                        <span>$150.000+</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -537,6 +732,43 @@ VENTAS TECH TYT © 2026
             {/* STEP 4: CATALOGO */}
             {currentStep === 4 && (
               <div className="space-y-6" id="step4">
+                <div className="bg-brand-magenta/5 border border-brand-magenta/20 p-6 rounded-2xl mb-8">
+                  <h3 className="text-brand-magenta font-black uppercase text-[10px] tracking-widest mb-4 flex items-center gap-2 border-b border-brand-magenta/10 pb-3">
+                    <Star size={16} /> Recomendador de Inteligencia Artificial: Top 7 Opciones Estratégicas
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {recommendedEquipments.map((eq, i) => (
+                        <div 
+                          key={`${eq.nombre}-${i}`}
+                          onClick={() => {
+                            setSelectedEquipment(eq as Equipment);
+                            trackMetric('topEquipment', eq.nombre);
+                          }}
+                          className={`p-4 rounded-xl shadow-sm cursor-pointer border transition-all flex flex-col justify-between ${
+                            i === 0 ? 'bg-gradient-to-br from-brand-magenta/10 to-brand-cyan/10 border-brand-magenta shadow-md ring-1 ring-brand-magenta/30 scale-[1.02]' 
+                            : 'bg-white border-slate-200 hover:shadow-md hover:border-brand-magenta/50'
+                          }`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                             <div className="flex items-center gap-2 text-slate-400">
+                                <Smartphone size={16} />
+                                {i === 0 && <span className="bg-brand-magenta text-white text-[8px] font-black px-2 py-0.5 rounded uppercase">#1 Match</span>}
+                             </div>
+                             <span className="text-brand-cyan font-black text-xs text-right whitespace-nowrap">
+                               {formatCurrency(eq.precio)}
+                             </span>
+                          </div>
+                          <p className="text-[10px] font-bold text-slate-800 leading-tight mb-2 h-8">{eq.nombre}</p>
+                          <div className="mt-auto bg-slate-50 p-2 rounded-lg border border-slate-100">
+                            <p className="text-[9px] text-slate-600 italic font-medium leading-relaxed">
+                              {eq.reason}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Search size={14} className="text-brand-blue" />
@@ -661,19 +893,70 @@ VENTAS TECH TYT © 2026
                   )}
                 </div>
 
-                {selectedEquipment && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-5 brand-gradient rounded-xl text-white shadow-lg flex items-center justify-between"
-                  >
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-widest opactiy-80">Seleccionado:</span>
-                      <h3 className="text-xl font-black">{selectedEquipment.nombre}</h3>
-                    </div>
-                    <CheckCircle2 size={32} className="opacity-40" />
-                  </motion.div>
-                )}
+                {selectedEquipment && (() => {
+                  const brandPitches = PITCHES_POR_MARCA[selectedEquipment.marca] || PITCHES_POR_MARCA[selectedEquipment.categoria === 'TECNOLOGIA' ? 'TECNOLOGIA' : 'DEFAULT'];
+                  const priorities = clientInfo.prioridades.length > 0 ? clientInfo.prioridades : [Object.keys(brandPitches[0].beneficios)[0]];
+                  
+                  return (
+                    <motion.div 
+                      key={selectedEquipment.nombre}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-6 pt-4"
+                    >
+                      <div className="p-5 brand-gradient rounded-xl text-white shadow-lg flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Equipo Seleccionado:</span>
+                          <h3 className="text-2xl font-black">{selectedEquipment.nombre}</h3>
+                        </div>
+                        <CheckCircle2 size={32} className="opacity-40" />
+                      </div>
+
+                      {/* Características más comunes/relevantes */}
+                      <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl shadow-sm">
+                        <h4 className="text-xs font-black uppercase text-slate-700 mb-4 tracking-widest flex items-center gap-2 border-b border-slate-200 pb-2">
+                          <Star size={16} className="text-yellow-500" /> Características Clave de este equipo
+                        </h4>
+                        <div className="text-xs text-slate-600 leading-relaxed space-y-4">
+                          {priorities.map((p, idx) => (
+                            <div key={idx}>
+                              <strong className="text-brand-magenta uppercase tracking-wider">{p}:</strong> {brandPitches[0].beneficios[p] || "Óptimo desempeño para su necesidad."}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Elevator Pitches Sugeridos */}
+                      <div className="p-6 bg-white border border-brand-blue/20 rounded-xl shadow-lg ring-1 ring-brand-blue/10">
+                         <h4 className="text-sm font-black uppercase text-brand-blue mb-4 tracking-widest flex items-center gap-2">
+                           <MessageSquare size={16} /> Elevator Pitches sugeridos (Cierre)
+                         </h4>
+                         <div className="space-y-3">
+                           {brandPitches.map((pitch, idx) => (
+                             <div key={idx} className="p-4 bg-slate-50 border border-slate-100 rounded-lg hover:border-brand-magenta/30 transition-colors cursor-default">
+                               <p className="text-xs font-semibold italic text-slate-800">
+                                 "{pitch.gancho.replace(/\[OCUPACION\]/g, clientInfo.ocupacion || 'cliente')}"
+                               </p>
+                             </div>
+                           ))}
+                         </div>
+                      </div>
+
+                      {/* Cierre Definitivo */}
+                      <div className="p-6 bg-green-50 border border-green-200 rounded-xl shadow-inner">
+                        <h4 className="text-sm font-black uppercase text-green-700 mb-2 tracking-widest">
+                          💰 Cierre Comercial Definitivo (Matador)
+                        </h4>
+                        <p className="text-sm font-bold text-slate-700 italic leading-relaxed">
+                          "Señor(a) {clientInfo.nombre || 'Cliente'}, no le estoy ofreciendo un simple celular, le estoy entregando una herramienta perfecta {clientInfo.paraQuien === 'Mi hijo(a)' ? 'para que su hijo(a) tenga lo mejor para estudiar y rendir' : clientInfo.paraQuien === 'Es un regalo' ? 'para que se luzcan con ese regalo espectacular' : 'para lo que usted hace'} como <strong className="text-green-700 uppercase">{clientInfo.ocupacion || 'profesional'}</strong>. Este {selectedEquipment.nombre} resuelve su necesidad de <strong className="uppercase">{priorities.join(' y ')}</strong> de tajo. 
+                          {clientInfo.equipoActual && <><br/><br/>Si usted viene de un <strong>{clientInfo.equipoActual}</strong>, la diferencia con este {selectedEquipment.nombre} es como pasar de un Renault a un BMW.</>}
+                          <br/><br/>
+                          No va a encontrar una tecnología tan completa y pagando menos de {formatCurrency(clientInfo.presupuestoMensual || 45000)} mensuales en otro lado. ¿Lo empacamos en su factura y le valido la dirección de entrega?"
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
               </div>
             )}
 
@@ -741,8 +1024,10 @@ VENTAS TECH TYT © 2026
                   <div className="text-center pt-8 border-t border-white/5 mt-8">
                     <p className="text-[10px] uppercase text-slate-500 mb-2 font-bold tracking-widest italic">Cuota Mensual Final</p>
                     <p className="text-4xl font-black text-brand-cyan italic font-mono">{formatCurrency(monthlyQuota)}</p>
-                    <div className="mt-6 inline-block bg-white/5 px-4 py-2 rounded-full">
-                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Tasa MV: 2.09% • Fija</p>
+                    <div className="mt-6 flex flex-col gap-2 items-center">
+                      <div className="inline-block bg-white/5 px-4 py-2 rounded-full">
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Tasa MV: 2.09% • Fija</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -756,7 +1041,10 @@ VENTAS TECH TYT © 2026
                   {Object.entries(OBJECTIONS).map(([key, obj]) => (
                     <button
                       key={key}
-                      onClick={() => setSelectedObjection(key)}
+                      onClick={() => {
+                        setSelectedObjection(key);
+                        trackMetric('objectionsViewed', 1);
+                      }}
                       className={`p-4 glass-card border-none text-left transition-all flex items-center gap-4 group ${
                         selectedObjection === key ? 'bg-brand-magenta text-white shadow-lg shadow-magenta-100' : 'bg-white hover:bg-slate-50'
                       }`}
@@ -784,13 +1072,27 @@ VENTAS TECH TYT © 2026
                         {(() => {
                           const obj = OBJECTIONS[selectedObjection];
                           const persona = clientInfo.ocupacion;
-                          const personaResp = obj.responses.personaResponses?.[persona];
+                          let r1 = obj.responses.personaResponses?.[persona]?.r1 || obj.responses.r1;
                           
-                          if (selectedObjection === 'cuotas' && !personaResp) {
-                            return `Si dividimos ${formatCurrency(monthlyQuota)} entre 30 días, hablamos de ${formatCurrency(Math.round(monthlyQuota / 30))} diarios. Eso es literalmente el valor de un pasaje de transporte público o un snack. ¿No vale su productividad y conectividad lo mismo que un snack diario? La mayoría de nuestros clientes recuperan el valor de la cuota simplemente con la eficiencia extra que les da el nuevo equipo.`;
+                          if (selectedObjection === 'cuotas' && monthlyQuota) {
+                             const diario = Math.round(monthlyQuota / 30);
+                             let comparacion = "un antojo rápido";
+                             if (diario < 1000) comparacion = "un chicle";
+                             else if (diario < 2500) comparacion = "un tinto o café";
+                             else if (diario <= 5000) comparacion = "un bocadillo o almuerzo corriente";
+                             
+                             r1 = `Si dividimos el costo mensual, hablamos de solo ${formatCurrency(diario)} pesos diarios. ¡Eso es literalmente menos que lo que cuesta ${comparacion}! ¿No vale su productividad y conectividad hoy en día mucho más que eso? La mayoría de nuestros clientes recuperan el valor de la cuota con la pura eficiencia que les da el nuevo equipo.`;
                           }
                           
-                          return personaResp ? personaResp.r1 : obj.responses.r1;
+                          if (selectedObjection === 'ahora_no' && selectedEquipment && selectedEquipment.precio >= 1000000) {
+                            r1 = `Lo entiendo, pero ojo: este ${selectedEquipment.nombre} tiene stock súper limitado en nuestras bodegas por ser gama premium, y el cupo sin cuota inicial que le aprobó el sistema tiene vigencia limitada para el día de hoy. Si lo dejamos pasar, nos arriesgamos a que mañana le pidan dinero por adelantado o se agote.`;
+                          }
+
+                          if (selectedObjection === 'otro_operador' && poliedroData?.antiguedad) {
+                             r1 = `Usted ya lleva ${poliedroData.antiguedad} construyendo confianza con nosotros. Ese tiempo es el que hoy le abrió las puertas a este cupo VIP sin cuotas iniciales ni trámites. En otro operador, tocaría empezar de cero y hacer fila como cliente nuevo para rogar por un equipo básico. Aquí ya es de la casa.`;
+                          }
+                          
+                          return r1;
                         })()}
                       </p>
                     </div>
@@ -800,8 +1102,7 @@ VENTAS TECH TYT © 2026
                         "{(() => {
                            const obj = OBJECTIONS[selectedObjection];
                            const persona = clientInfo.ocupacion;
-                           const personaResp = obj.responses.personaResponses?.[persona];
-                           return personaResp ? personaResp.r2 : obj.responses.r2;
+                           return obj.responses.personaResponses?.[persona]?.r2 || obj.responses.r2;
                         })()}"
                       </p>
                     </div>
@@ -810,9 +1111,112 @@ VENTAS TECH TYT © 2026
               </div>
             )}
 
-            {/* STEP 7: HABEAS DATA */}
+            {/* STEP 7: CLARO UP */}
             {currentStep === 7 && (
               <div className="space-y-8" id="step7">
+                <div className="bg-gradient-to-br from-red-600 to-red-800 border-2 border-red-500 p-8 rounded-3xl shadow-2xl text-white">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-red-500/30 rounded-xl backdrop-blur-md">
+                      <ShieldCheck size={28} className="text-white" />
+                    </div>
+                    <h2 className="text-2xl font-black uppercase tracking-wider">¡Protege el equipo con Claro UP!</h2>
+                  </div>
+                  
+                  <div className="grid lg:grid-cols-2 gap-6 mb-8">
+                    {/* Guiones & Pitch */}
+                    <div className="space-y-4">
+                      <div className="bg-red-900/40 p-6 rounded-2xl border border-red-500/50 h-full">
+                        <h3 className="text-xs font-bold mb-3 uppercase tracking-widest text-red-200">Pitch Ganador 🚀</h3>
+                        <p className="text-sm leading-relaxed italic font-medium mb-4">
+                          "Sr(a). {clientInfo.nombre}, usted se está llevando un excelente {selectedEquipment?.nombre}, pero no estamos aquí para subir el precio del dispositivo; estamos aquí para bajar el costo del desastre. Por menos del valor de un café a la semana, su equipo queda totalmente protegido contra robo, hurto calificado y daños. ¿Se lo incluyo para que salga protegido desde el primer día?"
+                        </p>
+                        <h3 className="text-xs font-bold mb-2 uppercase tracking-widest text-red-200 mt-4 border-t border-red-500/30 pt-4">Guion Formal (Aceptación)</h3>
+                        <p className="text-xs leading-relaxed italic text-slate-200">
+                          "Le comento que Claro UP es un seguro que le cubre en caso de Daño físico, Hurto y/o hurto calificado, y Falla eléctrica (una vez expirada la garantía). En caso de siniestro usted pagará un deducible del 25% para daños y 40% para hurto. La prima es mensual y cargada a su factura. ¿Está de acuerdo?"
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Infografia Precios y Deducibles */}
+                    <div className="space-y-4">
+                      <div className="bg-white text-slate-800 p-5 rounded-2xl shadow-lg">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-red-600 mb-3 text-center">Tabla de Primas Mensuales</h3>
+                        <div className="overflow-hidden rounded-lg border border-slate-200">
+                          <table className="w-full text-[10px] text-center">
+                            <thead className="bg-red-50 text-red-700 font-bold uppercase">
+                              <tr>
+                                <th className="p-2">Valor del Equipo</th>
+                                <th className="p-2">Prima Mensual</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="border-b border-slate-100">
+                                <td className="p-2 font-medium">De $200K a $500K</td>
+                                <td className="p-2 font-black">$16.000</td>
+                              </tr>
+                              <tr className="border-b border-slate-100 bg-slate-50">
+                                <td className="p-2 font-medium">De $500K a $1.25M</td>
+                                <td className="p-2 font-black">$22.500</td>
+                              </tr>
+                              <tr className="border-b border-slate-100">
+                                <td className="p-2 font-medium">De $1.25M a $1.75M</td>
+                                <td className="p-2 font-black">$32.000</td>
+                              </tr>
+                              <tr className="bg-slate-50">
+                                <td className="p-2 font-medium">Más de $1.75M</td>
+                                <td className="p-2 font-black">$38.000</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white text-slate-800 p-5 rounded-2xl shadow-lg">
+                         <h3 className="text-xs font-black uppercase tracking-widest text-red-600 mb-3 text-center">Coberturas y Deducibles</h3>
+                         <div className="grid grid-cols-2 gap-2 text-[10px]">
+                           <div className="bg-red-50 p-2 rounded-lg border border-red-100">
+                             <div className="font-bold text-red-700 mb-1">Daño Físico / Falla</div>
+                             <div className="text-slate-600">Deducible: <span className="font-black text-slate-800">25%</span></div>
+                           </div>
+                           <div className="bg-red-50 p-2 rounded-lg border border-red-100">
+                             <div className="font-bold text-red-700 mb-1">Hurto / Hurto Calif.</div>
+                             <div className="text-slate-600">Deducible: <span className="font-black text-slate-800">40%</span></div>
+                           </div>
+                         </div>
+                         <p className="text-[9px] text-center mt-3 font-semibold text-slate-500 italic">Cubre hasta 2 siniestros en 12 meses. Atención oportuna en 2 a 5 días con envío a domicilio (previo pago de deducible).</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white text-slate-800 p-6 rounded-2xl">
+                     <h3 className="text-sm font-black mb-4 uppercase tracking-widest text-center border-b pb-4">Cierre de Venta Claro UP</h3>
+                     <p className="text-center text-xs font-bold mb-6 italic text-slate-500">Obligatorio registrar si se ofreció al cliente</p>
+                     <div className="flex gap-4 max-w-lg mx-auto">
+                       <button 
+                         onClick={() => setClaroUpOfrecido(true)}
+                         className={`flex-1 p-4 rounded-xl border-2 font-black uppercase tracking-widest transition-all ${
+                           claroUpOfrecido === true ? 'bg-green-100 border-green-500 text-green-700 shadow-inner' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-green-50'
+                         }`}
+                       >
+                          ✅ Sí Ofrecí y Aceptó
+                       </button>
+                       <button 
+                         onClick={() => setClaroUpOfrecido(false)}
+                         className={`flex-1 p-4 rounded-xl border-2 font-black uppercase tracking-widest transition-all ${
+                           claroUpOfrecido === false ? 'bg-red-100 border-red-500 text-red-700 shadow-inner' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-red-50'
+                         }`}
+                       >
+                          ❌ No Aceptó
+                       </button>
+                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 8: HABEAS DATA */}
+            {currentStep === 8 && (
+              <div className="space-y-8" id="step8">
                 <div className="bg-white border-2 border-slate-100 p-8 rounded-3xl shadow-lg border-t-8 border-t-brand-magenta">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="p-2 bg-magenta-50 rounded-lg">
@@ -868,9 +1272,9 @@ VENTAS TECH TYT © 2026
               </div>
             )}
 
-            {/* STEP 8: POLIEDRO */}
-            {currentStep === 8 && (
-              <div className="space-y-8" id="step8">
+            {/* STEP 9: POLIEDRO */}
+            {currentStep === 9 && (
+              <div className="space-y-8" id="step9">
                 <div className="bg-slate-900 p-8 rounded-3xl shadow-xl">
                   <h3 className="text-xs font-black uppercase mb-4 text-brand-cyan tracking-widest flex items-center gap-2">
                     <ShieldCheck size={14} /> Inteligencia Poliedro 
@@ -922,23 +1326,112 @@ VENTAS TECH TYT © 2026
               </div>
             )}
 
-            {/* STEP 9: CONTRATO */}
-            {currentStep === 9 && (
-              <div className="space-y-8" id="step9">
+            {/* STEP 10: VALIDACION DIRECCION */}
+            {currentStep === 10 && (
+              <div className="space-y-8" id="step10">
+                <div className="bg-white p-8 rounded-3xl shadow-xl border-t-4 border-brand-blue">
+                  <h3 className="text-xl font-black mb-6 text-slate-800 flex items-center gap-2 uppercase tracking-widest border-b pb-4">
+                     <MapPin size={24} className="text-brand-blue" /> Validación de Entrega
+                  </h3>
+                  
+                  <div className="space-y-6">
+                    <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
+                      <label className="input-label mb-4 block">Dirección de Entrega (Exacta)</label>
+                      <input 
+                        type="text" 
+                        className="w-full p-4 bg-white border border-slate-200 rounded-xl focus:border-brand-blue outline-none transition-all text-sm font-semibold shadow-sm"
+                        placeholder="Ej: Calle 123 # 45-67, Apto 890, Conjunto XYZ..."
+                        value={clientInfo.direccion}
+                        onChange={(e) => setClientInfo({...clientInfo, direccion: e.target.value})}
+                      />
+                      
+                      {clientInfo.direccion && (
+                        <div className="mt-6 space-y-4">
+                          <div className="rounded-xl overflow-hidden shadow-sm border border-slate-200">
+                            <iframe 
+                              width="100%" 
+                              height="300" 
+                              style={{border:0}}
+                              loading="lazy"
+                              allowFullScreen
+                              referrerPolicy="no-referrer-when-downgrade" 
+                              src={`https://maps.google.com/maps?q=${encodeURIComponent(clientInfo.direccion)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                            ></iframe>
+                          </div>
+                          <div className="flex gap-4">
+                            <button 
+                              onClick={nextStep}
+                              className="flex-1 p-4 rounded-xl bg-green-500 text-white font-black text-[10px] uppercase tracking-widest text-center shadow-lg hover:bg-green-600 transition-all flex items-center justify-center gap-2"
+                            >
+                              <CheckCircle2 size={16} /> Dirección Confirmada
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setClientInfo({...clientInfo, direccion: ''});
+                                showToast("Por favor corrija la dirección", 'error');
+                              }}
+                              className="flex-1 p-4 rounded-xl bg-red-50 text-red-600 border border-red-200 font-black text-[10px] uppercase tracking-widest text-center shadow-sm hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                            >
+                              <RotateCcw size={16} /> Dirección Incorrecta
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 11: RESUMEN VERBAL */}
+            {currentStep === 11 && (
+              <div className="space-y-8" id="step11">
+                <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-brand-cyan"></div>
+                  <h3 className="text-sm font-black text-slate-800 mb-6 uppercase tracking-widest flex items-center gap-2">
+                    <CheckCircle2 className="text-brand-cyan" size={18} /> Validación de Cierre (Checklist Verbal)
+                  </h3>
+                  
+                  <div className="bg-cyan-50/50 p-6 rounded-xl border border-cyan-100">
+                    <p className="text-sm text-slate-800 leading-relaxed font-medium" id="resumen-verbal-texto">
+                      "Señor(a) <strong className="uppercase">{clientInfo.nombre || '[Nombre]'}</strong>, perfecto. Entonces para confirmar lo que acordamos: se lleva el <strong>{poliedroData?.equipoSimulado || selectedEquipment?.nombre || '[Equipo]'}</strong> de <strong>{selectedEquipment?.marca || '[Marca]'}</strong>, financiado a <strong>{term}</strong> meses con una cuota de <strong>{formatCurrency(monthlyQuota)}</strong> mensuales en su factura, sin cuota inicial. {claroUpOfrecido ? 'Con seguro Claro UP incluido para su tranquilidad.' : 'Sin seguro, aunque recuerde que puede activarlo después.'} La entrega será en la dirección <strong>{clientInfo.direccion || '[Dirección]'}</strong>. ¿Todo correcto? Procedemos con la validación legal."
+                    </p>
+                  </div>
+                  
+                  <div className="mt-6 flex justify-end">
+                    <button 
+                      onClick={() => {
+                        const texto = document.getElementById('resumen-verbal-texto')?.innerText;
+                        if(texto) {
+                          navigator.clipboard.writeText(texto);
+                          showToast("Resumen copiado al portapapeles para pegar en SGA/CRM.", 'success');
+                        }
+                      }}
+                      className="px-6 py-3 bg-white border border-brand-blue text-brand-blue rounded-xl font-black uppercase text-[10px] tracking-widest shadow-sm hover:bg-brand-blue hover:text-white transition-all flex items-center gap-2"
+                    >
+                      <FileText size={14} /> Copiar para CRM
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 12: CONTRATO */}
+            {currentStep === 12 && (
+              <div className="space-y-8" id="step12">
                 <div className="bg-white border border-slate-200 p-8 rounded-xl max-h-[500px] overflow-y-auto custom-scrollbar shadow-inner">
-                  <div 
-                    className="contract-viewer text-[10px] leading-relaxed text-slate-500 font-serif" 
-                    dangerouslySetInnerHTML={{ __html: generateContractText({
-                      nombre: clientInfo.nombre,
-                      cc: clientInfo.cc,
-                      equipo: poliedroData?.equipoSimulado || selectedEquipment?.nombre || '',
-                      marca: selectedEquipment?.marca || '',
-                      precio: poliedroData?.saldoADiferir || formatCurrency(realPrice),
-                      cuota: poliedroData?.cuotaSimulada || formatCurrency(monthlyQuota),
-                      meses: poliedroData?.plazoSimulado || term.toString(),
-                      asesor: asesor
-                    }) }}
-                  />
+                  <div className="contract-viewer text-[10px] leading-relaxed text-slate-500 font-serif">
+                    <ContractText 
+                      data={{
+                        nombre: clientInfo.nombre,
+                        cc: clientInfo.cc,
+                        equipo: poliedroData?.equipoSimulado || selectedEquipment?.nombre || '',
+                        marca: selectedEquipment?.marca || '',
+                        asesor: asesor
+                      }} 
+                      poliedroData={poliedroData} 
+                    />
+                  </div>
                 </div>
 
                 <div className="glass-card p-6 space-y-4">
@@ -954,9 +1447,9 @@ VENTAS TECH TYT © 2026
               </div>
             )}
 
-            {/* STEP 10: RESUMEN */}
-            {currentStep === 10 && (
-              <div className="space-y-8" id="step10">
+            {/* STEP 13: RESUMEN */}
+            {currentStep === 13 && (
+              <div className="space-y-8" id="step13">
                 <div className="glass-card overflow-hidden border-2 border-brand-blue translate-y-0 shadow-2xl">
                   <div className="brand-gradient p-6 text-white text-center">
                     <h2 className="text-lg font-black uppercase italic tracking-[0.3em]">Orden de Despacho Digital</h2>
@@ -999,7 +1492,17 @@ VENTAS TECH TYT © 2026
 
                 <div className="flex flex-col md:flex-row gap-4 print:hidden">
                   <button onClick={handleExportTxt} className="flex-1 brand-gradient text-white font-black py-4 rounded-xl flex items-center justify-center gap-3 text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">
-                    <FileText size={16} /> Finalizar y Generar Documento (.TXT)
+                    <FileText size={16} /> Exportar TXT
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const crmText = `Nombre: ${clientInfo.nombre}\nCédula: ${clientInfo.cc}\nEquipo: ${selectedEquipment?.nombre}\nPrecio: ${formatCurrency(realPrice)}\nPlazo: ${term} meses\nCuota: ${formatCurrency(monthlyQuota)}\nDirección: ${clientInfo.direccion}`;
+                      navigator.clipboard.writeText(crmText);
+                      showToast("Datos copiados para CRM", 'success');
+                    }} 
+                    className="flex-1 bg-green-500 text-white font-black py-4 rounded-xl flex items-center justify-center gap-3 text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all hover:bg-green-600"
+                  >
+                    <CheckCircle2 size={16} /> Copiar al CRM
                   </button>
                   <button onClick={resetAll} className="flex-1 bg-slate-800 text-white font-black py-4 rounded-xl flex items-center justify-center gap-3 text-xs uppercase tracking-widest hover:bg-black active:scale-95 transition-all">
                     <RotateCcw size={16} /> Nueva Venta
@@ -1011,7 +1514,12 @@ VENTAS TECH TYT © 2026
         </AnimatePresence>
 
         {/* Footer Nav */}
-        <footer className="mt-16 pt-8 border-t border-slate-200 flex justify-between items-center print:hidden">
+        <div className="text-center mt-12 mb-4 hidden md:block print:hidden">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+            Atajos: ⬅/➡ Navegar | Ctrl+L Modo Llamada/Panel Frontal | Alt+[1-9] Ir a paso | Esc Cerrar
+          </span>
+        </div>
+        <footer className="pt-4 border-t border-slate-200 flex justify-between items-center print:hidden">
           <button 
             onClick={prevStep}
             disabled={currentStep === 1}
@@ -1022,7 +1530,7 @@ VENTAS TECH TYT © 2026
             <ChevronLeft size={16} /> Anterior
           </button>
           
-          {currentStep < 10 && (
+          {currentStep < 13 && (
             <button 
               onClick={nextStep}
               className="flex items-center gap-3 px-10 py-4 brand-gradient text-white rounded-xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl hover:shadow-blue-500/20 active:scale-95 transition-all group"
@@ -1032,6 +1540,47 @@ VENTAS TECH TYT © 2026
           )}
         </footer>
       </main>
+
+      {/* Global Toast */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-xl shadow-2xl font-bold text-sm text-white flex items-center gap-3 ${
+              toastMessage.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            }`}
+          >
+            {toastMessage.type === 'success' ? <CheckCircle2 size={20} /> : <HelpCircle size={20} />}
+            {toastMessage.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Modo Llamada Button */}
+      <button 
+        onClick={() => setIsModoLlamada(true)}
+        className="fixed bottom-6 right-6 z-40 bg-brand-magenta text-white p-4 rounded-full shadow-[0_0_20px_rgba(255,0,102,0.3)] hover:scale-110 active:scale-95 transition-all outline-none border border-white/20 print:hidden flex items-center justify-center group"
+      >
+        <PhoneCall size={24} className="group-hover:animate-pulse" />
+      </button>
+
+      {/* Modo Llamada Overlay */}
+      {isModoLlamada && (
+        <ModoLlamada 
+          clientInfo={clientInfo}
+          selectedEquipment={selectedEquipment}
+          monthlyQuota={monthlyQuota}
+          claroUpOfrecido={claroUpOfrecido}
+          onClose={() => setIsModoLlamada(false)}
+          onCerrarVenta={() => {
+            setIsModoLlamada(false);
+            if (currentStep < 11) goToStep(11);
+          }}
+          setSelectedEquipment={setSelectedEquipment}
+        />
+      )}
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
@@ -1045,6 +1594,7 @@ VENTAS TECH TYT © 2026
           .glass-card { background: white; border: 1px solid #eee; box-shadow: none; }
         }
       `}</style>
+      {showMetrics && <MetricsPanel onClose={() => setShowMetrics(false)} />}
     </div>
   );
 }

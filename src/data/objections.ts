@@ -81,6 +81,14 @@ export const OBJECTIONS: Record<string, { title: string, icon: string, responses
       r2: "Todos hemos tenido baches financieros, pero nosotros creemos en el presente. Si su línea tiene antigüedad, su cupo ya está pre-asignado. No es como un banco tradicional. Aquí premiamos su fidelidad como cliente CXD. ¿Me permite su cédula para validar cuánto tiene hoy aprobado?"
     }
   },
+  otro_operador: {
+    title: "Tengo otro operador",
+    icon: "📡",
+    responses: {
+      r1: "Por eso mismo lo llamamos. Usted merece los beneficios de estar en el operador con mayor cobertura de Colombia. Pasándose a Claro, automáticamente le aprobamos y le entregamos equipo sin cuota inicial. En su operador actual empezar de cero para pedir un equipo es un dolor de cabeza.",
+      r2: "Claro le pone la alfombra roja. ¿Para qué quedarse donde no le liberan cupo VIP? Traiga su número y estrena de una vez."
+    }
+  },
   compara: {
     title: "Debo comparar en otro lado",
     icon: "🔍",
@@ -105,6 +113,22 @@ export const OBJECTIONS: Record<string, { title: string, icon: string, responses
           r2: "Hoy el stock está disponible. Mañana podrías estar en medio de un proyecto y arrepentirte de no haber dado el salto cuando tenías el beneficio en la mano."
         }
       }
+    }
+  },
+  celular_bueno: {
+    title: "Ya tengo un celular bueno",
+    icon: "📱",
+    responses: {
+      r1: "Lo entiendo, pero los equipos sufren degradación de memoria y batería con el tiempo, además de perder actualizaciones de seguridad. Hoy tiene el cupo y la promoción sin cuota inicial; no espere a que su equipo actual empiece a fallar para salir a buscar a las carreras y más caro.",
+      r2: "Es como tener un buen carro de hace 5 años; sigue andando, pero no tiene las ventajas de seguridad y ahorro de uno nuevo. Si no aprovecha el cupo tecnológico hoy, lo perderá."
+    }
+  },
+  mas_cargos: {
+    title: "No quiero más cargos en la factura",
+    icon: "🧾",
+    responses: {
+      r1: "Comprendo, pero véalo no como un gasto adicional, sino como un reemplazo de lo que gasta por fuera. Al llevarlo en la factura de Claro le quitamos los intereses altos de tarjetas, se ahorra cuota inicial, y el equipo se vuelve parte de su presupuesto fijo y controlado. Es una inversión garantizada, no una deuda que crece.",
+      r2: "A nadie le gusta ver que la factura sube, pero esto es una inversión de trabajo. Está unificando el control de su conectividad y herramienta en un solo lugar y de paso no toca el flujo de caja de su bolsillo hoy."
     }
   },
   otro: {

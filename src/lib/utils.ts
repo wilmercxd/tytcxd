@@ -17,6 +17,20 @@ export const downloadTxt = (filename: string, text: string) => {
   document.body.removeChild(element);
 };
 
+export const trackMetric = (key: string, value: any = 1) => {
+  try {
+    const stats = JSON.parse(localStorage.getItem('tyt_metrics') || '{}');
+    if (typeof value === 'number') {
+      stats[key] = (stats[key] || 0) + value;
+    } else {
+      stats[key] = value;
+    }
+    localStorage.setItem('tyt_metrics', JSON.stringify(stats));
+  } catch (e) {
+    // ignore
+  }
+};
+
 export const calculateMonthlyInstallment = (principal: number, months: number) => {
   // Using the rate from the footer: 28.17% EA = 2.09% MV
   const monthlyRate = 0.0209;

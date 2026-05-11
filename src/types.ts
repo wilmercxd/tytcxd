@@ -7,6 +7,22 @@ export interface Equipment {
   plazosDisponibles?: number[];
 }
 
+export interface ClientInfo {
+  nombre: string;
+  cc: string;
+  ocupacion: string;
+  prioridades: string[];
+  direccion: string;
+  presupuestoMensual?: number;
+  paraQuien?: string;
+  equipoActual?: string;
+}
+
+export interface PitchData {
+  gancho: string;
+  beneficios: Record<string, string>;
+}
+
 export interface ObjectionResponse {
   r1: string;
   r2: string;
@@ -26,4 +42,7 @@ export interface PoliedroData {
   cuotaSimulada?: string;
   plazoSimulado?: string;
   saldoADiferir?: string;
+  valorTotal?: string;
+  valorIVA?: string;
+  pagoInicial?: string;
 }
