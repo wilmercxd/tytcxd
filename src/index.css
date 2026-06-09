@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-blue: #0066FF;
+  --color-brand-magenta: #FF00FF;
+  --color-brand-cyan: #00FFFF;
+}
+
+@layer components {
+  .brand-gradient {
+    background: linear-gradient(90deg, #0066FF, #FF00FF, #00FFFF);
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+  }
+
+  .input-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: #64748B;
+    margin-bottom: 4px;
+    letter-spacing: 0.05em;
+    display: block;
+  }
+
+  .hormozi-box {
+    border-left: 4px solid #FF00FF;
+    background: #FFF5FF;
+  }
+}
+
+body {
+  background-color: #F8FAFC;
+  color: #1E293B;
+}
