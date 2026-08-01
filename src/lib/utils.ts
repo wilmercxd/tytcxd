@@ -32,8 +32,8 @@ export const trackMetric = (key: string, value: any = 1) => {
 };
 
 export const calculateMonthlyInstallment = (principal: number, months: number) => {
-  // Using the rate from the footer: 28.78% EA = 2.13% MV
-  const monthlyRate = 0.0213;
+  // Using the rate from the footer: 29.54% EA = 2.18% MV
+  const monthlyRate = 0.0218;
   if (months === 0) return principal;
   
   // Formula for fixed installment: P * (r * (1 + r)^n) / ((1 + r)^n - 1)
@@ -82,16 +82,22 @@ export const generateSpecs = (eq: any): { label: string, value: string }[] => {
 };
 
 export const getAvailableTerms = (eq: any): number[] => {
-  if (eq.plazosDisponibles && eq.plazosDisponibles.length > 0) return eq.plazosDisponibles;
-  
-  if (eq.categoria === 'SMARTPHONE') {
-    return [6, 12, 18, 24, 36];
+  if (!eq) return [6, 12, 18, 24];
+
+  const cat = (eq.categoria || '').toUpperCase();
+  const name = (eq.nombre || '').toLowerCase();
+
+  // Terminales (celulares): Los plazos para diferir son 6, 12, 18 y 24 meses (no aplica a 36 cuotas)
+  if (cat === 'SMARTPHONE' || cat === 'IPHONE' || cat === 'VOZ' || eq.tecnologia || name.includes('combo 2 und') || name.includes('combo 2und') || name.includes('combo 2unid')) {
+    return [6, 12, 18, 24];
+  }
+
+  if (eq.plazosDisponibles && eq.plazosDisponibles.length > 0) {
+    return eq.plazosDisponibles;
   }
   
-  const name = eq.nombre.toLowerCase();
-  
-  // High ticket items usually got longer terms
-  if (name.includes('tv ') || name.includes('televisor') || name.includes('portatil') || name.includes('portátil') || name.includes('consola') || name.includes('ipad') || name.includes('macbook')) {
+  // High ticket tecnologia items (TVs, Laptops, Consoles, Scooters, etc.) can go up to 36 months
+  if (name.includes('tv ') || name.includes('televisor') || name.includes('portatil') || name.includes('portátil') || name.includes('consola') || name.includes('ipad') || name.includes('macbook') || name.includes('ps5') || name.includes('xbox') || name.includes('patineta') || name.includes('scooter')) {
     return [6, 12, 18, 24, 36];
   }
   

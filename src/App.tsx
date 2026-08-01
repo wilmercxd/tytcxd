@@ -31,6 +31,7 @@ import { formatCurrency, calculateMonthlyInstallment, downloadTxt, trackMetric, 
 import { Equipment, PoliedroData } from './types';
 import ModoLlamada from './ModoLlamada';
 import MetricsPanel from './MetricsPanel';
+import { CxdLogo } from './CxdLogo';
 import { PhoneCall } from 'lucide-react';
 
 const STEPS = [
@@ -258,6 +259,15 @@ export default function App() {
     }));
   };
 
+  useEffect(() => {
+    if (selectedEquipment) {
+      const available = getAvailableTerms(selectedEquipment);
+      if (!available.includes(term)) {
+        setTerm(available[available.length - 1] || 24);
+      }
+    }
+  }, [selectedEquipment]);
+
   const realPrice = useMemo(() => {
     if (!selectedEquipment) return 0;
     let price = selectedEquipment.precio;
@@ -304,7 +314,7 @@ FINANCIACIÓN:
 -----------------------------------------
 PLAZO: ${term} MESES
 CUOTA MENSUAL: ${formatCurrency(monthlyQuota)}
-TASA MV: 2.09% (Fija)
+TASA MV: 2.18% (Fija)
 
 AUTORIZACIONES Y SEGUROS:
 -----------------------------------------
@@ -487,9 +497,9 @@ VENTAS TECH TYT © 2026
       <header className="brand-gradient py-6 sticky top-0 z-50 shadow-lg print:hidden text-white">
         <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="CXD Logo" className="h-10 object-contain" />
-            <h1 className="text-xl font-extrabold tracking-tighter italic uppercase">
-              Asistente de Ventas TyT <span className="font-light opacity-80 uppercase text-[10px] tracking-widest ml-2 hidden sm:inline">V.Junio.2026</span>
+            <CxdLogo className="h-9" light={true} />
+            <h1 className="text-xl font-extrabold tracking-tighter italic uppercase ml-2 border-l border-white/20 pl-3">
+              Asistente de Ventas TyT <span className="font-light opacity-80 uppercase text-[10px] tracking-widest ml-2 hidden sm:inline">V.Agosto.2026</span>
             </h1>
           </div>
           <div className="flex gap-4 items-center">
@@ -497,8 +507,7 @@ VENTAS TECH TYT © 2026
               <BarChart2 size={16} />
             </button>
             <div className="hidden md:flex gap-4 text-[10px] font-bold uppercase tracking-wider">
-              <span className="bg-white/20 px-3 py-1 rounded-full border border-white/10 backdrop-blur-sm">Tasa EA: 28.78%</span>
-              <span className="bg-white/20 px-3 py-1 rounded-full border border-white/10 backdrop-blur-sm">664 Equipos Activos</span>
+              <span className="bg-white/20 px-3 py-1 rounded-full border border-white/10 backdrop-blur-sm">Tasa EA: 29.54%</span>
             </div>
           </div>
         </div>
@@ -1118,7 +1127,7 @@ VENTAS TECH TYT © 2026
                     <p className="text-4xl font-black text-brand-cyan italic font-mono">{formatCurrency(monthlyQuota)}</p>
                     <div className="mt-6 flex flex-col gap-2 items-center">
                       <div className="inline-block bg-white/5 px-4 py-2 rounded-full">
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Tasa MV: 2.13% • Fija</p>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Tasa MV: 2.18% • Fija</p>
                       </div>
                     </div>
                   </div>
@@ -1130,10 +1139,10 @@ VENTAS TECH TYT © 2026
                   </p>
                   <ul className="text-[10px] text-slate-600 space-y-2 list-disc pl-5">
                     <li>Los precios anteriores aplican para venta de contado o a crédito.</li>
-                    <li>La venta a crédito aplica bajo la modalidad de cuota fija a la tasa de interés del 28,78% Efectiva Anual (E.A.), equivalente al 2,13% Mes Vencido (M.V.).</li>
-                    <li>La tasa máxima legal vigente establecida por la Superintendencia Financiera para el periodo del 1 al 30 de junio es 28,79%.</li>
+                    <li>La venta a crédito aplica bajo la modalidad de cuota fija a la tasa de interés del 29,54% Efectiva Anual (E.A.), equivalente al 2,18% Mes Vencido (M.V.).</li>
+                    <li>La tasa máxima legal vigente establecida por la Superintendencia Financiera para el periodo del 1 al 31 de agosto es 29,66%.</li>
                     <li>De conformidad con la Ley 2010 de 2019, las patinetas eléctricas aplica exclusión de IVA hasta las 50 UVTs.</li>
-                    <li>De acuerdo al equipo, los plazos a diferir a cuotas son 6, 12, 18, 24 y 36 meses.</li>
+                    <li>De acuerdo al equipo, los plazos a diferir a cuotas son 6, 12, 18 y 24 meses para celulares / terminales, y de 6 a 36 meses para equipos de tecnología.</li>
                     <li>Venta a crédito aplica únicamente para antigüedad mayor a 12 meses y está sujeta a políticas de crédito (excepciones solo por módulo de crédito).</li>
                   </ul>
                 </div>

@@ -101,7 +101,7 @@ export const OBJECTIONS: Record<string, { title: string, icon: string, responses
     title: "Ahora no, estoy pensando",
     icon: "⏳",
     responses: {
-      r1: "El análisis genera parálisis. Piense en esto: mientras usted lo piensa, otros están aprovechando los inventarios de Junio. Este precio y este cupo preaprobado tienen fecha de vencimiento. Si vuelve mañana y el cupo expiró o el equipo ya no está, ¿se sentiría frustrado? Si la respuesta es sí, entonces la decisión correcta es hacerlo ahora.",
+      r1: "El análisis genera parálisis. Piense en esto: mientras usted lo piensa, otros están aprovechando los inventarios de Agosto. Este precio y este cupo preaprobado tienen fecha de vencimiento. Si vuelve mañana y el cupo expiró o el equipo ya no está, ¿se sentiría frustrado? Si la respuesta es sí, entonces la decisión correcta es hacerlo ahora.",
       r2: "Alex Hormozi dice que la diferencia entre una vida mediocre y una extraordinaria es la velocidad de toma de decisiones. Usted ya sabe que necesita el equipo, ya sabe que le gusta y ya sabe que puede pagarlo. ¿Cuál es el beneficio real de esperar 24 horas más? Solo retrasar su satisfacción.",
       personaResponses: {
         jubilado: {

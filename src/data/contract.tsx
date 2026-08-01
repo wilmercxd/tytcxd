@@ -51,10 +51,10 @@ export const ContractText = ({ data, poliedroData }: {
         <p>Saldo del Equipo: <strong>{saldoEquipo}</strong></p>
         <p>Número de cuotas: <strong>{meses}</strong></p>
         <p>Valor de la Cuota: <strong>{cuota}</strong></p>
-        <p>Tasa de interés EA: 28.78%</p>
-        <p>Tasa de Interés Moratoria: 28.79%</p>
-        <p>Tasa de interés Máxima Legal: 28.79%</p>
-        <p>Tasa mensual: 2.13%</p>
+        <p>Tasa de interés EA: 29.54%</p>
+        <p>Tasa de Interés Moratoria: 29.66%</p>
+        <p>Tasa de interés Máxima Legal: 29.66%</p>
+        <p>Tasa mensual: 2.18%</p>
       </div>
 
       <p>Podrá pagar anticipadamente parcial o total el saldo de su crédito con la liquidación de intereses al día del pago, sin que haya lugar al pago de cláusulas penales o sanciones económicas, ni exigiremos el pago de interés no causados.</p>
