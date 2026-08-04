@@ -33,6 +33,7 @@ import ModoLlamada from './ModoLlamada';
 import MetricsPanel from './MetricsPanel';
 import { CxdLogo } from './CxdLogo';
 import { PhoneCall } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 const STEPS = [
   { id: 1, title: 'Bienvenida', icon: User },
@@ -1710,6 +1711,7 @@ VENTAS TECH TYT © 2026
         }
       `}</style>
       {showMetrics && <MetricsPanel onClose={() => setShowMetrics(false)} />}
+      <Analytics />
     </div>
   );
 }
